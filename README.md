@@ -481,6 +481,14 @@ GhostGuard was built with privacy as a non-negotiable constraint:
 Built with 💙 for the **SDS Hackathon — Problem Statement #3**:
 *Develop an ML-Based Passive Human Verification System as an Alternative to CAPTCHA*
 
+| # | Name | Role |
+|---|---|---|
+| 🏆 | **Sushmit Kumar Singh** | Team Leader |
+| 👨‍💻 | **Om Adityan** | Team Member |
+| 👨‍💻 | **Nikhith Lingam** | Team Member |
+
+**Team Name: LFG**
+
 | Role | Contribution |
 |---|---|
 | ML Architecture | XGBoost-Lite design, feature calibration, threshold tuning |
