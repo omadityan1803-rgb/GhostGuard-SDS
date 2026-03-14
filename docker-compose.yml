@@ -1,6 +1,7 @@
-version: '3.8'
+version: "3.8"
 
 services:
+
   backend:
     build: ./backend
     ports:
@@ -16,15 +17,13 @@ services:
     depends_on:
       - db
       - redis
-    volumes:
-      - ./backend:/app
 
   db:
     image: postgres:15-alpine
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: ghostguard
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=ghostguard
     ports:
       - "5432:5432"
     volumes:
@@ -48,20 +47,13 @@ volumes:
   pgdata:
 ```
 
-Commit it → then come back to VS Code terminal and run:
+---
+
+## Then in VS Code Terminal
 ```
 git pull
 ```
 
-This downloads the new file to your computer. Then run:
+Then:
 ```
 docker compose up --build
-```
-
----
-
-## Check If File Exists First
-
-In VS Code terminal type:
-```
-dir
