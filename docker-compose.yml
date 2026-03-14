@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/ghostguard
+      - REDIS_URL=redis://redis:6379
+      - SECRET_KEY=ghostguard-secret-changeme
+      - ENV=development
+      - DEBUG=True
+      - PASS_THRESHOLD=75
+      - SOFT_THRESHOLD=40
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./backend:/app
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ghostguard
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  dashboard:
+    build: ./dashboard
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://localhost:8000/api/v1
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+```
+
+Commit it → then come back to VS Code terminal and run:
+```
+git pull
+```
+
+This downloads the new file to your computer. Then run:
+```
+docker compose up --build
+```
+
+---
+
+## Check If File Exists First
+
+In VS Code terminal type:
+```
+dir
