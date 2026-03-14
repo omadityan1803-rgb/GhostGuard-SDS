@@ -1,0 +1,13 @@
+{
+  "name": "@ghostguard/sdk",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc && npx esbuild dist/index.js --bundle --minify --outfile=dist/ghostguard.min.js",
+    "dev": "tsc --watch"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "esbuild": "^0.20.0"
+  }
+}
