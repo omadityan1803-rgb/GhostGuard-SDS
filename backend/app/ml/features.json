@@ -1,0 +1,18 @@
+[
+  "mouse_entropy",
+  "mouse_avg_speed",
+  "mouse_direction_changes",
+  "mouse_straight_line_ratio",
+  "mouse_pause_count",
+  "key_avg_dwell",
+  "key_avg_flight",
+  "key_rhythm_consistency",
+  "key_backspace_ratio",
+  "key_typing_speed",
+  "scroll_depth",
+  "scroll_avg_speed",
+  "scroll_direction_changes",
+  "scroll_reading_pattern",
+  "session_duration",
+  "request_timing_variance"
+]
