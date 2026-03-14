@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GhostGaurd — Live Detection Monitor</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0d1117;--bg2:#161b22;--bg3:#1c2128;--border:#30363d;
+    --text:#e6edf3;--text2:#8b949e;--text3:#3d444d;
+    --green:#3fb950;--gbg:rgba(63,185,80,.08);--gbd:rgba(63,185,80,.25);
+    --amber:#e3b341;--abg:rgba(227,179,65,.08);--abd:rgba(227,179,65,.25);
+    --red:#f85149;--rbg:rgba(248,81,73,.08);--rbd:rgba(248,81,73,.25);
+    --blue:#58a6ff;--cyan:#39d0d8;--purple:#bc8cff;
+    --mono:'JetBrains Mono',monospace;
+  }
+  body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+  .topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 1.25rem;height:50px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+  .ttitle{font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px;}
+  .ldot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);animation:pdot 1.5s ease-in-out infinite;}
+  @keyframes pdot{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.4);opacity:.6}}
+  .badge{font-family:var(--mono);font-size:10px;font-weight:500;padding:3px 9px;border-radius:20px;letter-spacing:.04em;}
+  .bg-green{background:var(--gbg);color:var(--green);border:1px solid var(--gbd);}
+  .bg-blue{background:rgba(88,166,255,.08);color:var(--blue);border:1px solid rgba(88,166,255,.25);}
+  .bg-red{background:var(--rbg);color:var(--red);border:1px solid var(--rbd);}
+  .bg-amber{background:var(--abg);color:var(--amber);border:1px solid var(--abd);}
+
+  /* WAIT SCREEN */
+  #wait{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;z-index:200;transition:opacity .6s;}
+  #wait.gone{opacity:0;pointer-events:none;}
+  .wring{width:70px;height:70px;border-radius:50%;border:2px solid var(--border);border-top-color:var(--green);animation:spin 1.1s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .wtitle{font-size:19px;font-weight:600;color:var(--text2);}
+  .wsub{font-size:13px;color:var(--text3);text-align:center;line-height:1.7;max-width:380px;}
+  .wsteps{display:flex;flex-direction:column;gap:8px;width:340px;}
+  .wstep{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text2);padding:9px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;}
+  .wnum{font-family:var(--mono);font-size:9px;width:18px;height:18px;border-radius:50%;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--text3);}
+
+  /* PAGE */
+  .page{max-width:1280px;margin:0 auto;padding:1rem 1.25rem 3rem;}
+  .stats-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:1rem;}
+  .sc{background:var(--bg2);padding:10px 12px;text-align:center;}
+  .sv{font-family:var(--mono);font-size:20px;font-weight:700;}
+  .sl{font-size:10px;color:var(--text3);margin-top:2px;text-transform:uppercase;letter-spacing:.04em;}
+  .grid2{display:grid;grid-template-columns:1fr 320px;gap:1rem;align-items:start;}
+  .left{display:flex;flex-direction:column;gap:1rem;}
+  .right{display:flex;flex-direction:column;gap:1rem;}
+  .card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+  .ch{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+  .ct{font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;}
+  .cb{padding:14px;}
+
+  /* VERDICT */
+  .vcard{border-radius:10px;border:1px solid;padding:1.2rem 1.5rem;transition:all .35s;}
+  .v-h{background:var(--gbg);border-color:var(--gbd);}
+  .v-s{background:var(--abg);border-color:var(--abd);}
+  .v-b{background:var(--rbg);border-color:var(--rbd);}
+  .vtop{display:flex;align-items:center;gap:14px;margin-bottom:14px;}
+  .vicon{font-size:40px;line-height:1;}
+  .vlabel{font-size:24px;font-weight:700;transition:color .3s;}
+  .vsub{font-size:12px;color:var(--text2);margin-top:4px;line-height:1.6;}
+  .pgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .pi{background:rgba(0,0,0,.2);border-radius:8px;padding:11px;}
+  .pn{font-size:11px;color:var(--text2);margin-bottom:6px;}
+  .pv{font-family:var(--mono);font-size:32px;font-weight:700;transition:color .3s;}
+  .pt{height:4px;background:rgba(255,255,255,.06);border-radius:2px;margin-top:8px;overflow:hidden;}
+  .pf{height:100%;border-radius:2px;transition:width .4s cubic-bezier(.4,0,.2,1),background .3s;}
+
+  /* GAUGE */
+  .gwrap{display:flex;flex-direction:column;align-items:center;gap:5px;padding:4px 0;}
+
+  /* FEATURE BARS */
+  .flist{display:flex;flex-direction:column;gap:9px;}
+  .fr{display:flex;flex-direction:column;gap:3px;}
+  .ft{display:flex;justify-content:space-between;}
+  .fn{font-size:11px;color:var(--text2);}
+  .fv{font-family:var(--mono);font-size:11px;color:var(--text);font-weight:500;transition:color .3s;}
+  .ftk{height:4px;background:var(--bg3);border-radius:2px;overflow:hidden;}
+  .ff{height:100%;border-radius:2px;transition:width .4s cubic-bezier(.4,0,.2,1);}
+
+  /* TABLE */
+  table{width:100%;border-collapse:collapse;}
+  th{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;text-align:left;padding:7px 10px;border-bottom:1px solid var(--border);}
+  td{font-family:var(--mono);font-size:12px;padding:7px 10px;border-bottom:1px solid rgba(48,54,61,.4);color:var(--text2);transition:color .3s;}
+  td.val{color:var(--text);font-weight:500;}
+  td.vc{color:var(--cyan);}td.vg{color:var(--green);}td.va{color:var(--amber);}
+  td.vb{color:var(--blue);}td.vp{color:var(--purple);}
+  .stag{font-size:10px;padding:2px 7px;border-radius:10px;font-family:var(--mono);font-weight:500;}
+  .tok{background:var(--gbg);color:var(--green);}
+  .tbad{background:var(--rbg);color:var(--red);}
+  .tna{background:rgba(88,166,255,.1);color:var(--blue);}
+
+  /* CANVAS */
+  .mwrap{background:var(--bg);border-radius:8px;overflow:hidden;position:relative;}
+  canvas{display:block;width:100%;}
+  .mhint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;transition:opacity .4s;}
+  .mhint p{font-size:12px;color:var(--text3);text-align:center;line-height:1.7;}
+
+  /* LOG */
+  .log{background:var(--bg);border-radius:6px;padding:8px;max-height:200px;overflow-y:auto;font-family:var(--mono);font-size:11px;}
+  .log::-webkit-scrollbar{width:3px;}
+  .log::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+  .le{padding:2px 0;display:flex;gap:8px;border-bottom:1px solid rgba(48,54,61,.25);}
+  .lt{color:var(--text3);min-width:72px;flex-shrink:0;}
+  .lty{min-width:55px;flex-shrink:0;}
+  .lm{color:var(--green)}.lk{color:var(--cyan)}.ls{color:var(--purple)}.lc{color:var(--amber)}.lsys{color:var(--blue)}
+  .ld{color:var(--text2);}
+
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+  .a1{animation:fadeIn .3s .05s ease both}.a2{animation:fadeIn .3s .1s ease both}
+  .a3{animation:fadeIn .3s .15s ease both}.a4{animation:fadeIn .3s .2s ease both}
+  @media(max-width:860px){.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- WAIT SCREEN -->
+<div id="wait">
+  <div class="wring"></div>
+  <div class="wtitle">Waiting for login page signals…</div>
+  <div class="wsub">Keep this window open. Interact with <strong style="color:var(--text)">page1-login.html</strong> in a separate Chrome window.</div>
+  <div class="wsteps">
+    <div class="wstep"><div class="wnum">1</div>Open <strong>page1-login.html</strong> in a NEW Chrome window (not tab)</div>
+    <div class="wstep"><div class="wnum">2</div>Move your mouse anywhere on the login page</div>
+    <div class="wstep"><div class="wnum">3</div>Type in the email and password fields</div>
+    <div class="wstep"><div class="wnum">4</div>This panel updates live via localStorage cross-window event</div>
+  </div>
+  <div style="font-family:var(--mono);font-size:10px;color:var(--text3);padding:8px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;max-width:340px;text-align:center">
+    Both files must be opened from the same folder (same origin). Works across separate Chrome windows.
+  </div>
+</div>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:10px">
+    <div class="ttitle"><div class="ldot"></div>GhostGaurd — Live Detection Monitor</div>
+    <span class="badge bg-blue">CROSS-WINDOW</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <span style="font-family:var(--mono);font-size:10px;color:var(--text3)" id="lastUpdate">—</span>
+    <span class="badge bg-red" id="connBadge">⬤ Waiting…</span>
+  </div>
+</div>
+
+<div class="page" id="mainPage" style="display:none">
+
+  <!-- STATS STRIP -->
+  <div class="stats-strip a1">
+    <div class="sc"><div class="sv" id="st-ev">0</div><div class="sl">Events</div></div>
+    <div class="sc"><div class="sv" id="st-ms">0</div><div class="sl">Mouse pts</div></div>
+    <div class="sc"><div class="sv" id="st-ks">0</div><div class="sl">Keystrokes</div></div>
+    <div class="sc"><div class="sv" id="st-sc">0</div><div class="sl">Scroll pts</div></div>
+    <div class="sc"><div class="sv" id="st-hz">—</div><div class="sl">Updates/s</div></div>
+  </div>
+
+  <div class="grid2">
+    <div class="left">
+
+      <!-- VERDICT -->
+      <div class="a2">
+        <div id="vcard" class="vcard v-h">
+          <div class="vtop">
+            <div class="vicon" id="vicon">⏳</div>
+            <div>
+              <div class="vlabel" id="vlabel" style="color:var(--text2)">Analyzing…</div>
+              <div class="vsub" id="vsub">Processing live behavioral signals from login window</div>
+            </div>
+          </div>
+          <div class="pgrid">
+            <div class="pi">
+              <div class="pn">Human Probability</div>
+              <div class="pv" id="hpct" style="color:var(--text3)">—</div>
+              <div class="pt"><div class="pf" id="hbar" style="width:0%"></div></div>
+            </div>
+            <div class="pi">
+              <div class="pn">Bot Probability</div>
+              <div class="pv" id="bpct" style="color:var(--text3)">—</div>
+              <div class="pt"><div class="pf" id="bbar" style="width:0%"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MOUSE CANVAS -->
+      <div class="card a3">
+        <div class="ch">
+          <span class="ct">Real-Time Mouse Path (from login window)</span>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--text3)" id="ptCount">0 pts</span>
+        </div>
+        <div style="padding:10px">
+          <div class="mwrap" id="mwrap">
+            <canvas id="mcanvas" height="180"></canvas>
+            <div class="mhint" id="mhint"><p>Mouse positions from the login page<br>appear here in real time</p></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- KEYSTROKE CHART -->
+      <div class="card a3">
+        <div class="ch">
+          <span class="ct">Keystroke Intervals (live from login typing)</span>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--text3)" id="ksNote">—</span>
+        </div>
+        <div style="padding:10px">
+          <canvas id="kscanvas" height="110" style="background:var(--bg);border-radius:6px"></canvas>
+        </div>
+      </div>
+
+      <!-- SIGNAL TABLE -->
+      <div class="card a4">
+        <div class="ch"><span class="ct">Live Feature Values</span></div>
+        <table>
+          <thead><tr><th>Feature</th><th>Value</th><th>Unit</th><th>Interpretation</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>Mouse speed</td>    <td class="val vc" id="tv-spd">—</td>  <td>px/s</td>  <td id="ti-spd" style="font-size:11px;color:var(--text2)">—</td><td id="tg-spd">—</td></tr>
+            <tr><td>Accel variance</td> <td class="val vc" id="tv-acc">—</td>  <td>σ</td>     <td id="ti-acc" style="font-size:11px;color:var(--text2)">—</td><td id="tg-acc">—</td></tr>
+            <tr><td>Typing latency</td> <td class="val vg" id="tv-tlat">—</td> <td>ms avg</td><td id="ti-tlat" style="font-size:11px;color:var(--text2)">—</td><td id="tg-tlat">—</td></tr>
+            <tr><td>Typing σ</td>       <td class="val vg" id="tv-tstd">—</td> <td>ms</td>    <td id="ti-tstd" style="font-size:11px;color:var(--text2)">—</td><td id="tg-tstd">—</td></tr>
+            <tr><td>Click σ</td>        <td class="val va" id="tv-cis">—</td>  <td>ms</td>    <td id="ti-cis" style="font-size:11px;color:var(--text2)">—</td><td id="tg-cis">—</td></tr>
+            <tr><td>Scroll variance</td><td class="val vp" id="tv-scv">—</td>  <td>σ</td>     <td id="ti-scv" style="font-size:11px;color:var(--text2)">—</td><td id="tg-scv">—</td></tr>
+            <tr><td>Path linearity</td> <td class="val vb" id="tv-lin">—</td>  <td>0–1</td>   <td id="ti-lin" style="font-size:11px;color:var(--text2)">—</td><td id="tg-lin">—</td></tr>
+            <tr><td>Session entropy</td><td class="val"    id="tv-ent">—</td>  <td>bits</td>  <td id="ti-ent" style="font-size:11px;color:var(--text2)">—</td><td id="tg-ent">—</td></tr>
+            <tr><td>Speed CoV</td>      <td class="val"    id="tv-cov">—</td>  <td>ratio</td> <td id="ti-cov" style="font-size:11px;color:var(--text2)">—</td><td id="tg-cov">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- EVENT LOG -->
+      <div class="card a4">
+        <div class="ch">
+          <span class="ct">Live Event Stream</span>
+          <button onclick="clearLog()" style="font-size:10px;color:var(--text3);background:none;border:none;cursor:pointer;font-family:inherit">Clear</button>
+        </div>
+        <div style="padding:8px">
+          <div class="log" id="logbox">
+            <div class="le"><span class="lt">—</span><span class="lty lsys">SYS   </span><span class="ld">Listening via localStorage storage event…</span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="right">
+
+      <!-- GAUGE -->
+      <div class="card a2">
+        <div class="ch"><span class="ct">Human Score</span></div>
+        <div class="cb">
+          <div class="gwrap">
+            <canvas id="gauge" width="200" height="115"></canvas>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:.07em;text-transform:uppercase">Human probability</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FEATURE BARS -->
+      <div class="card a3">
+        <div class="ch"><span class="ct">Feature Contributions</span></div>
+        <div class="cb">
+          <div class="flist">
+            <div class="fr"><div class="ft"><span class="fn">Speed CoV</span><span class="fv" id="fw-cv">—</span></div><div class="ftk"><div class="ff" id="ff-cv" style="width:0%;background:var(--cyan)"></div></div></div>
+            <div class="fr"><div class="ft"><span class="fn">Accel jitter</span><span class="fv" id="fw-ac">—</span></div><div class="ftk"><div class="ff" id="ff-ac" style="width:0%;background:var(--cyan)"></div></div></div>
+            <div class="fr"><div class="ft"><span class="fn">Typing mean</span><span class="fv" id="fw-tm">—</span></div><div class="ftk"><div class="ff" id="ff-tm" style="width:0%;background:var(--green)"></div></div></div>
+            <div class="fr"><div class="ft"><span class="fn">Typing σ</span><span class="fv" id="fw-tv">—</span></div><div class="ftk"><div class="ff" id="ff-tv" style="width:0%;background:var(--green)"></div></div></div>
+            <div class="fr"><div class="ft"><span class="fn">Click σ</span><span class="fv" id="fw-ci">—</span></div><div class="ftk"><div class="ff" id="ff-ci" style="width:0%;background:var(--amber)"></div></div></div>
+            <div class="fr"><div class="ft"><span class="fn">Scroll var</span><span class="fv" id="fw-sc">—</span></div><div class="ftk"><div class="ff" id="ff-sc" style="width:0%;background:var(--purple)"></div></div></div>
+            <div class="fr"><div class="ft"><span class="fn">Linearity inv</span><span class="fv" id="fw-li">—</span></div><div class="ftk"><div class="ff" id="ff-li" style="width:0%;background:var(--red)"></div></div></div>
+            <div class="fr"><div class="ft"><span class="fn">Entropy</span><span class="fv" id="fw-en">—</span></div><div class="ftk"><div class="ff" id="ff-en" style="width:0%;background:var(--blue)"></div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DECISION -->
+      <div class="card a4">
+        <div class="ch"><span class="ct">Decision Breakdown</span></div>
+        <div class="cb">
+          <div id="decisions" style="display:flex;flex-direction:column;gap:7px">
+            <div style="font-family:var(--mono);font-size:11px;color:var(--text3)">Waiting…</div>
+          </div>
+          <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:8px;font-family:var(--mono);font-size:10px;color:var(--text3)">&gt;75% HUMAN · 40–75% SUSPICIOUS · &lt;40% BOT</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════════════════
+//  PAGE 2 — CROSS-WINDOW DETECTION MONITOR
+//
+//  HOW CROSS-WINDOW localStorage WORKS:
+//  ┌──────────────────────┐        ┌──────────────────────────────┐
+//  │  Chrome Window 1     │        │  Chrome Window 2 (this page) │
+//  │  page1-login.html    │        │  page2-detection.html        │
+//  │                      │        │                              │
+//  │  mousemove event     │        │  window.addEventListener(    │
+//  │       ↓              │        │    'storage', handler)       │
+//  │  localStorage.setItem│──────→ │       ↑                      │
+//  │  ('ps_signal', data) │  fires │  storage event fires here    │
+//  │                      │  event │  automatically               │
+//  └──────────────────────┘        └──────────────────────────────┘
+//
+//  The browser automatically fires a 'storage' event in ALL other
+//  windows/tabs from the same origin when localStorage is modified.
+//  No WebSocket, no server — pure browser API.
+// ════════════════════════════════════════════════════════════════════════
+
+const CHANNEL = 'ps_signal';
+const t0 = performance.now();
+let firstData = false, lastPositions = [], lastIntervals = [];
+let updateTimes = [], logCount = 0;
+
+const mean = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : 0;
+const std  = a => { if(a.length<2) return 0; const m=mean(a); return Math.sqrt(a.reduce((x,y)=>x+(y-m)**2,0)/a.length); };
+const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
+const fmt = (v,d=1) => (isFinite(v)&&!isNaN(v)&&v>0) ? v.toFixed(d) : '—';
+
+// ── CROSS-WINDOW: storage event fires when PAGE 1 writes localStorage ──
+window.addEventListener('storage', e => {
+  if (e.key === CHANNEL && e.newValue) {
+    try { process(JSON.parse(e.newValue)); } catch(err) {}
+  }
+});
+
+// ── FALLBACK POLL: also poll every 120ms (handles same-tab / file:// quirks)
+setInterval(() => {
+  try {
+    const raw = localStorage.getItem(CHANNEL);
+    if (!raw) return;
+    const p = JSON.parse(raw);
+    if (Date.now() - p.ts < 600) process(p);
+  } catch(e) {}
+}, 120);
+
+function process(payload) {
+  if (!firstData) {
+    firstData = true;
+    document.getElementById('wait').classList.add('gone');
+    document.getElementById('mainPage').style.display = '';
+  }
+  updateTimes.push(performance.now());
+  if (updateTimes.length > 20) updateTimes.shift();
+
+  const { features: f, prob, raw, meta } = payload;
+  lastPositions = raw.mousePositions || [];
+  const ti = [];
+  for (let i=1; i<(raw.keyTimes||[]).length; i++) ti.push(raw.keyTimes[i]-raw.keyTimes[i-1]);
+  lastIntervals = ti;
+
+  renderVerdict(prob);
+  renderFeatures(f, ti);
+  renderDecisions(f);
+  drawGauge(prob);
+  drawPath(raw.mousePositions||[]);
+  drawKs(ti);
+  renderStats(raw, meta);
+  appendLog(f, prob);
+  document.getElementById('lastUpdate').textContent = 'Last: '+new Date().toLocaleTimeString();
+}
+
+// ── VERDICT ───────────────────────────────────────────────────────────
+function renderVerdict(prob) {
+  const h=Math.round(prob*100), b=100-h;
+  const vc=document.getElementById('vcard');
+  const vi=document.getElementById('vicon'), vl=document.getElementById('vlabel'), vs=document.getElementById('vsub');
+  const hp=document.getElementById('hpct'), bp=document.getElementById('bpct');
+  const hb=document.getElementById('hbar'), bb=document.getElementById('bbar');
+  hp.textContent=h+'%'; bp.textContent=b+'%';
+  hb.style.width=h+'%'; bb.style.width=b+'%';
+  const badge=document.getElementById('connBadge');
+  if(prob>0.75){
+    vc.className='vcard v-h'; vi.textContent='✓'; vl.textContent='Human Verified'; vl.style.color='var(--green)';
+    vs.textContent='Irregular mouse path · natural typing variance · high session entropy.';
+    hp.style.color='var(--green)'; bp.style.color='var(--red)';
+    hb.style.background='var(--green)'; bb.style.background='var(--red)';
+    badge.className='badge bg-green'; badge.textContent='⬤ HUMAN';
+  } else if(prob>0.4){
+    vc.className='vcard v-s'; vi.textContent='⚠'; vl.textContent='Suspicious'; vl.style.color='var(--amber)';
+    vs.textContent='Ambiguous signals — some features match automation patterns.';
+    hp.style.color='var(--amber)'; bp.style.color='var(--amber)';
+    hb.style.background='var(--amber)'; bb.style.background='var(--amber)';
+    badge.className='badge bg-amber'; badge.textContent='⚠ SUSPICIOUS';
+  } else {
+    vc.className='vcard v-b'; vi.textContent='✕'; vl.textContent='Bot Detected'; vl.style.color='var(--red)';
+    vs.textContent='Deterministic timing · linear path · near-zero variance — automation detected.';
+    hp.style.color='var(--red)'; bp.style.color='var(--red)';
+    hb.style.background='var(--green)'; bb.style.background='var(--red)';
+    badge.className='badge bg-red'; badge.textContent='✕ BOT';
+  }
+}
+
+// ── FEATURES ─────────────────────────────────────────────────────────
+function tag(ok,na=false){
+  if(na) return '<span class="stag tna">N/A</span>';
+  return ok?'<span class="stag tok">HUMAN</span>':'<span class="stag tbad">BOT-LIKE</span>';
+}
+function setRow(s,val,interp,ok,na=false){
+  const v=document.getElementById('tv-'+s), t=document.getElementById('tg-'+s), i=document.getElementById('ti-'+s);
+  if(v) v.textContent=fmt(val); if(t) t.innerHTML=tag(ok,na); if(i) i.textContent=interp;
+}
+function setFW(id,val,max){
+  const e=document.getElementById('fw-'+id), b=document.getElementById('ff-'+id);
+  if(e) e.textContent=fmt(val); if(b) b.style.width=clamp(val/max*100,0,100).toFixed(1)+'%';
+}
+
+function renderFeatures(f,ti){
+  const ht=ti.length>1;
+  setRow('spd',  f.speedMean,  f.speedMean>200&&f.speedMean<2000?'Organic range':'Constant/extreme', f.speedMean>200&&f.speedMean<2000);
+  setRow('acc',  f.accelVar,   f.accelVar>30?'Natural jitter':'Robotic constancy', f.accelVar>30);
+  setRow('tlat', f.typingMean, ht?(f.typingMean>80?'Natural hesitation':'Suspiciously fast'):'Type in login fields', f.typingMean>80, !ht);
+  setRow('tstd', f.typingStd,  ht?(f.typingStd>40?'Variable rhythm':'Uniform — mechanical'):'Need more keys', f.typingStd>40, !ht);
+  setRow('cis',  f.clickStd,   f.clickStd>60?'Irregular = human':'Precise = bot', f.clickStd>60, f.clickStd===0);
+  setRow('scv',  f.scrollVar,  f.scrollVar>20?'Variable = organic':'Fixed delta = bot', f.scrollVar>20);
+  setRow('lin',  f.linearity,  f.linearity<0.75?'Curved = natural':'Straight = bot', f.linearity<0.75);
+  setRow('ent',  f.entropy*3,  f.entropy>0.4?'Rich entropy = human':'Low entropy = robotic', f.entropy>0.4);
+  setRow('cov',  f.cv,         f.cv>0.2?'Variable speed = organic':'Constant = automated', f.cv>0.2);
+  document.getElementById('tv-cov').textContent = f.cv.toFixed(3);
+
+  setFW('cv',f.cv*100,100); setFW('ac',f.accelVar,400); setFW('tm',f.typingMean,400); setFW('tv',f.typingStd,200);
+  setFW('ci',f.clickStd,300); setFW('sc',f.scrollVar,200); setFW('li',(1-f.linearity)*100,100); setFW('en',f.entropy*100,100);
+}
+
+function renderDecisions(f){
+  const items=[
+    {l:'Speed CoV',     v:(f.cv*100).toFixed(0)+'%', p:f.cv>0.2,         w:f.cv>0.2?'Natural variation':'Constant speed'},
+    {l:'Accel jitter',  v:fmt(f.accelVar),            p:f.accelVar>50,    w:f.accelVar>50?'Human-like tremor':'Zero jitter — bot'},
+    {l:'Typing latency',v:f.typingMean>0?fmt(f.typingMean)+'ms':'n/a',   p:f.typingMean>80||!f.typingMean, w:f.typingMean>0?(f.typingMean>80?'Natural hesitation':'Fast/uniform'):'Type in login page'},
+    {l:'Typing σ',      v:f.typingStd>0?fmt(f.typingStd)+'ms':'n/a',     p:f.typingStd>40||!f.typingStd,  w:f.typingStd>0?(f.typingStd>40?'Variable rhythm':'Uniform — bot'):'Need more keystrokes'},
+    {l:'Path linearity',v:f.linearity.toFixed(3),     p:f.linearity<0.75, w:f.linearity<0.75?'Curved — organic':'Straight — bot'},
+    {l:'Entropy',       v:(f.entropy*3).toFixed(2),   p:f.entropy>0.4,    w:f.entropy>0.4?'Rich entropy':'Predictable pattern'},
+  ];
+  document.getElementById('decisions').innerHTML=items.map(it=>`
+    <div style="display:flex;align-items:flex-start;gap:8px">
+      <div style="width:16px;height:16px;border-radius:50%;border:1px solid;flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;${it.p?'background:var(--gbg);border-color:var(--gbd);color:var(--green)':'background:var(--rbg);border-color:var(--rbd);color:var(--red)'}">${it.p?'✓':'✕'}</div>
+      <div>
+        <div style="font-size:11px;font-weight:600;display:flex;gap:5px;align-items:center">${it.l}
+          <span style="font-family:var(--mono);font-size:10px;padding:1px 5px;border-radius:3px;${it.p?'background:var(--gbg);color:var(--green)':'background:var(--rbg);color:var(--red)'}">${it.v}</span>
+        </div>
+        <div style="font-size:11px;color:var(--text2);margin-top:1px">${it.w}</div>
+      </div>
+    </div>`).join('');
+}
+
+// ── GAUGE ─────────────────────────────────────────────────────────────
+function drawGauge(prob){
+  const c=document.getElementById('gauge'),ctx=c.getContext('2d');
+  ctx.clearRect(0,0,200,115);
+  const cx=100,cy=105,r=80,lw=14;
+  ctx.beginPath();ctx.arc(cx,cy,r,Math.PI,2*Math.PI);
+  ctx.strokeStyle='rgba(255,255,255,.06)';ctx.lineWidth=lw;ctx.stroke();
+  const clr=prob>0.75?'#3fb950':prob>0.4?'#e3b341':'#f85149';
+  ctx.beginPath();ctx.arc(cx,cy,r,Math.PI,Math.PI+prob*Math.PI);
+  ctx.strokeStyle=clr;ctx.lineWidth=lw;ctx.lineCap='round';ctx.stroke();
+  ctx.fillStyle=clr;ctx.font='700 28px JetBrains Mono,monospace';
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(Math.round(prob*100)+'%',cx,cy-13);
+  ctx.fillStyle='rgba(255,255,255,.3)';ctx.font='11px Inter,sans-serif';
+  ctx.fillText(prob>0.75?'HUMAN':prob>0.4?'SUSPICIOUS':'BOT',cx,cy+5);
+  ['0','25','50','75','100'].forEach((l,i)=>{
+    const a=Math.PI+i*.25*Math.PI;
+    ctx.fillStyle='rgba(255,255,255,.2)';ctx.font='9px monospace';
+    ctx.fillText(l,cx+Math.cos(a)*(r+17),cy+Math.sin(a)*(r+17));
+  });
+}
+drawGauge(0);
+
+// ── MOUSE PATH ────────────────────────────────────────────────────────
+function drawPath(positions){
+  const wrap=document.getElementById('mwrap'),c=document.getElementById('mcanvas'),ctx=c.getContext('2d');
+  c.width=wrap.clientWidth;c.height=180;
+  if(!positions||positions.length<2) return;
+  document.getElementById('mhint').style.opacity='0';
+  document.getElementById('ptCount').textContent=positions.length+' pts';
+  const xs=positions.map(p=>p.x),ys=positions.map(p=>p.y);
+  const mnX=Math.min(...xs),mxX=Math.max(...xs),mnY=Math.min(...ys),mxY=Math.max(...ys);
+  const sc=Math.min((c.width-30)/(mxX-mnX||1),(c.height-30)/(mxY-mnY||1),2.5);
+  const tx=x=>15+(x-mnX)*sc, ty=y=>15+(y-mnY)*sc;
+  ctx.clearRect(0,0,c.width,c.height);
+  for(let i=1;i<positions.length;i++){
+    const a=i/positions.length;
+    ctx.beginPath();ctx.moveTo(tx(positions[i-1].x),ty(positions[i-1].y));
+    ctx.lineTo(tx(positions[i].x),ty(positions[i].y));
+    ctx.strokeStyle=`rgba(88,166,255,${a*.9})`;ctx.lineWidth=a*2.5;ctx.lineCap='round';ctx.stroke();
+  }
+  const last=positions[positions.length-1];
+  ctx.beginPath();ctx.arc(tx(last.x),ty(last.y),5,0,Math.PI*2);
+  ctx.fillStyle='#58a6ff';ctx.shadowColor='rgba(88,166,255,.7)';ctx.shadowBlur=10;ctx.fill();ctx.shadowBlur=0;
+}
+
+// ── KEYSTROKE CHART ───────────────────────────────────────────────────
+function drawKs(intervals){
+  const c=document.getElementById('kscanvas'),ctx=c.getContext('2d');
+  c.width=c.parentElement.clientWidth||540;c.height=110;
+  if(!intervals||intervals.length<2){
+    ctx.fillStyle='rgba(255,255,255,.12)';ctx.font='11px monospace';ctx.textAlign='center';
+    ctx.fillText('Type in the email/password on the login page',c.width/2,55);
+    document.getElementById('ksNote').textContent='waiting for keystrokes…';return;
+  }
+  const max=Math.max(...intervals),w=c.width,h=c.height,pad=18;
+  const avg=mean(intervals);
+  const avgY=h-pad-(avg/max)*(h-pad*2);
+  ctx.beginPath();ctx.moveTo(pad,avgY);ctx.lineTo(w-pad,avgY);
+  ctx.strokeStyle='rgba(227,179,65,.5)';ctx.lineWidth=1;ctx.setLineDash([3,3]);ctx.stroke();ctx.setLineDash([]);
+  const bw=Math.max(3,((w-pad*2)/intervals.length)-1.5);
+  intervals.forEach((v,i)=>{
+    const bh=(v/max)*(h-pad*2),x=pad+i*((w-pad*2)/intervals.length),y=h-pad-bh;
+    const d=Math.abs(v-avg)/avg;
+    ctx.fillStyle=d<0.3?'rgba(63,185,80,.75)':d<0.6?'rgba(227,179,65,.75)':'rgba(248,81,73,.75)';
+    ctx.fillRect(x,y,bw,bh);
+  });
+  ctx.fillStyle='rgba(255,255,255,.2)';ctx.font='9px monospace';ctx.textAlign='left';
+  ctx.fillText('0ms',pad,h-3);ctx.fillText(Math.round(max)+'ms',pad,pad+9);
+  ctx.fillStyle='rgba(227,179,65,.8)';ctx.fillText('avg '+Math.round(avg)+'ms',w-100,avgY-3);
+  document.getElementById('ksNote').textContent=intervals.length+' intervals · avg '+Math.round(avg)+'ms · σ='+Math.round(std(intervals))+'ms';
+}
+
+function renderStats(raw,meta){
+  document.getElementById('st-ev').textContent=meta.interactions||0;
+  document.getElementById('st-ms').textContent=(raw.mousePositions||[]).length;
+  document.getElementById('st-ks').textContent=(raw.keyTimes||[]).length;
+  document.getElementById('st-sc').textContent=(raw.scrollDeltas||[]).length;
+  if(updateTimes.length>2){
+    const span=updateTimes[updateTimes.length-1]-updateTimes[0];
+    document.getElementById('st-hz').textContent=((updateTimes.length-1)/(span/1000)).toFixed(1);
+  }
+}
+
+let logCount2=0;
+const logBox=document.getElementById('logbox');
+function appendLog(f,prob){
+  logCount2++;
+  if(logCount2%2!==0) return;
+  const el=(performance.now()-t0)/1000;
+  const m=String(Math.floor(el/60)).padStart(2,'0');
+  const s=String(Math.floor(el%60)).padStart(2,'0');
+  const ms=String(Math.floor((el%1)*1000)).padStart(3,'0');
+  const verdict=prob>0.75?'HUMAN':prob>0.4?'SUS':'BOT';
+  const cls=prob>0.75?'lm':prob>0.4?'lk':'ls';
+  const div=document.createElement('div');div.className='le';
+  div.innerHTML=`<span class="lt">${m}:${s}:${ms}</span><span class="lty ${cls}">MODEL </span><span class="ld">score=${Math.round(prob*100)}% [${verdict}] spd=${Math.round(f.speedMean)} tlat=${f.typingMean>0?Math.round(f.typingMean)+'ms':'—'} lin=${f.linearity.toFixed(2)} ent=${(f.entropy*3).toFixed(2)}</span>`;
+  logBox.appendChild(div);
+  if(logBox.children.length>60) logBox.removeChild(logBox.children[0]);
+  logBox.scrollTop=logBox.scrollHeight;
+}
+
+function clearLog(){
+  logBox.innerHTML='';
+  const d=document.createElement('div');d.className='le';
+  d.innerHTML='<span class="lt">—</span><span class="lty lsys">SYS   </span><span class="ld">Log cleared</span>';
+  logBox.appendChild(d);
+}
+
+window.addEventListener('resize',()=>{ drawPath(lastPositions); drawKs(lastIntervals); });
+</script>
+</body>
+</html>
