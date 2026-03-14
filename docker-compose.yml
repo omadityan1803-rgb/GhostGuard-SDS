@@ -45,15 +45,3 @@ services:
 
 volumes:
   pgdata:
-```
-
----
-
-## Then in VS Code Terminal
-```
-git pull
-```
-
-Then:
-```
-docker compose up --build
