@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>GhostGuard Demo</title>
+  <style>
+    body { font-family: system-ui; max-width: 600px; margin: 60px auto; padding: 20px; }
+    .score-box { background: #f5f5f5; border-radius: 12px; padding: 24px; margin: 20px 0; }
+    .verdict { font-size: 24px; font-weight: bold; }
+    .PASS     { color: #16a34a; }
+    .SOFT_FLAG{ color: #d97706; }
+    .CHALLENGE{ color: #dc2626; }
+    .bar { height: 12px; background: #e5e7eb; border-radius: 6px; overflow: hidden; }
+    .bar-fill { height: 100%; background: linear-gradient(90deg, #ef4444, #f59e0b, #10b981);
+                transition: width 1s ease; border-radius: 6px; }
+    input, button { padding: 10px 16px; margin: 8px 4px; border-radius: 8px;
+                    border: 1px solid #d1d5db; font-size: 16px; }
+    button { background: #1e40af; color: white; border: none; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>👻 GhostGuard Demo</h1>
+  <p>Move your mouse, type something below, scroll around — GhostGuard watches passively.</p>
+
+  <div class="score-box">
+    <div id="status">Collecting signals... (move your mouse & type below)</div>
+    <br>
+    <div class="bar"><div class="bar-fill" id="score-bar" style="width:0%"></div></div>
+    <br>
+    <div id="verdict" class="verdict"></div>
+    <div id="details" style="font-size:13px; color:#666; margin-top:8px;"></div>
+  </div>
+
+  <input type="text" placeholder="Type here to generate keyboard signals..." style="width:100%; box-sizing:border-box">
+  <br>
+  <button onclick="manualVerify()">Verify Now</button>
+
+  <script>
+    const API_URL = 'http://localhost:8000/api/v1';
+    const SESSION_ID = crypto.randomUUID();
+    const sessionStart = Date.now();
+
+    // Signal collection
+    const mousePoints = [];
+    const keyEvents = [];
+    const scrollEvents = [];
+
+    document.addEventListener('mousemove', e => {
+      mousePoints.push({x: e.clientX, y: e.clientY, t: Date.now()});
+      if (mousePoints.length > 200) mousePoints.shift();
+    });
+    document.addEventListener('keydown', e => keyEvents.push({key: e.key, type:'down', t: Date.now()}));
+    document.addEventListener('keyup',   e => keyEvents.push({key: e.key, type:'up',   t: Date.now()}));
+    window.addEventListener('scroll',    () => scrollEvents.push({y: window.scrollY, t: Date.now()}));
+
+    function computeMouseFeatures() {
+      if (mousePoints.length < 5) return {entropy:0,avgSpeed:0,directionChanges:0,straightLineRatio:1,pauseCount:0};
+      let dist=0, changes=0, pauses=0, speeds=[], prevAngle=null;
+      for (let i=1; i<mousePoints.length; i++) {
+        const dx=mousePoints[i].x-mousePoints[i-1].x;
+        const dy=mousePoints[i].y-mousePoints[i-1].y;
+        const dt=mousePoints[i].t-mousePoints[i-1].t;
+        const d=Math.sqrt(dx*dx+dy*dy);
+        dist+=d;
+        if (dt>0) { const s=d/dt; speeds.push(s); if(s<0.05) pauses++; }
+        const a=Math.atan2(dy,dx);
+        if (prevAngle!==null && Math.abs(a-prevAngle)>Math.PI/4) changes++;
+        prevAngle=a;
+      }
+      const avg=speeds.reduce((a,b)=>a+b,0)/(speeds.length||1);
+      const variance=speeds.reduce((s,v)=>s+Math.pow(v-avg,2),0)/(speeds.length||1);
+      const entropy=Math.min(1,Math.sqrt(variance)/(avg+0.001));
+      const first=mousePoints[0], last=mousePoints[mousePoints.length-1];
+      const dd=Math.sqrt(Math.pow(last.x-first.x,2)+Math.pow(last.y-first.y,2));
+      return {entropy,avgSpeed:avg,directionChanges:changes,straightLineRatio:dd/(dist+0.001),pauseCount:pauses};
+    }
+
+    function computeKeyFeatures() {
+      const downs=keyEvents.filter(e=>e.type==='down');
+      if (downs.length<3) return {avgDwellTime:0,avgFlightTime:0,rhythmConsistency:0,backspaceRatio:0,typingSpeed:0};
+      const intervals=downs.slice(1).map((d,i)=>d.t-downs[i].t);
+      const mean=intervals.reduce((a,b)=>a+b,0)/(intervals.length||1);
+      const std=Math.sqrt(intervals.reduce((s,v)=>s+Math.pow(v-mean,2),0)/(intervals.length||1));
+      return {
+        avgDwellTime:100, avgFlightTime:mean,
+        rhythmConsistency:Math.min(1,std/(mean+1)),
+        backspaceRatio:downs.filter(d=>d.key==='Backspace').length/downs.length,
+        typingSpeed:downs.length/5/((Date.now()-sessionStart)/60000+0.001)
+      };
+    }
+
+    async function manualVerify() {
+      document.getElementById('status').textContent = 'Analyzing...';
+      const payload = {
+        sessionId: SESSION_ID,
+        siteKey: 'demo-key',
+        sessionDuration: Date.now() - sessionStart,
+        mouse: computeMouseFeatures(),
+        keyboard: computeKeyFeatures(),
+        scroll: { scrollDepth: scrollEvents.length>0 ? 0.3 : 0, avgScrollSpeed: 0.2,
+                  scrollDirectionChanges: 0, readingPatternScore: 0.3 },
+        fingerprint: { canvasHash: 'demo', webglRenderer: 'demo', screenResolution: `${screen.width}x${screen.height}` },
+        requestMeta: { userAgent: navigator.userAgent, timestamp: Date.now(), timingVariance: 100 }
+      };
+
+      try {
+        const res = await fetch(`${API_URL}/verify`, {
+          method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
+        });
+        const data = await res.json();
+        displayResult(data);
+      } catch(e) {
+        document.getElementById('status').textContent = 'Backend not running — start with docker compose up';
+      }
+    }
+
+    function displayResult(data) {
+      document.getElementById('status').textContent = `Human Confidence Score:`;
+      document.getElementById('score-bar').style.width = data.score + '%';
+      const vEl = document.getElementById('verdict');
+      vEl.textContent = `${data.score}/100 — ${data.verdict}`;
+      vEl.className = 'verdict ' + data.verdict;
+      document.getElementById('details').textContent =
+        data.token ? `✓ Token issued: ${data.token.slice(0,16)}...` :
+        data.verdict === 'SOFT_FLAG' ? '⚠ Flagged for soft review' :
+        '✗ SmartFallback challenge triggered';
+    }
+
+    // Auto verify after 4 seconds
+    setTimeout(manualVerify, 4000);
+  </script>
+</body>
+</html>
