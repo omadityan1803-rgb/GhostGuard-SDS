@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GhostGaurd — Live Detection Monitor</title>
+<title>PassiveShield — Live Detection Monitor</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -65,8 +65,10 @@
   .pi{background:rgba(0,0,0,.2);border-radius:8px;padding:11px;}
   .pn{font-size:11px;color:var(--text2);margin-bottom:6px;}
   .pv{font-family:var(--mono);font-size:32px;font-weight:700;transition:color .3s;}
+  /* BUG FIX: removed transition from .pf — slow CSS transition on bars made them
+     look visually frozen when value is stable (e.g. 98%). Now updates instantly. */
   .pt{height:4px;background:rgba(255,255,255,.06);border-radius:2px;margin-top:8px;overflow:hidden;}
-  .pf{height:100%;border-radius:2px;transition:width .4s cubic-bezier(.4,0,.2,1),background .3s;}
+  .pf{height:100%;border-radius:2px;transition:background .3s;}
 
   /* GAUGE */
   .gwrap{display:flex;flex-direction:column;align-items:center;gap:5px;padding:4px 0;}
@@ -108,7 +110,8 @@
   .lm{color:var(--green)}.lk{color:var(--cyan)}.ls{color:var(--purple)}.lc{color:var(--amber)}.lsys{color:var(--blue)}
   .ld{color:var(--text2);}
 
-  @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+  /* Probability bar — instant update, no slow transition */
+  @keyframes numFlash{0%,100%{opacity:1}40%{opacity:.4}}
   .a1{animation:fadeIn .3s .05s ease both}.a2{animation:fadeIn .3s .1s ease both}
   .a3{animation:fadeIn .3s .15s ease both}.a4{animation:fadeIn .3s .2s ease both}
   @media(max-width:860px){.grid2{grid-template-columns:1fr}}
@@ -135,7 +138,7 @@
 <!-- TOP BAR -->
 <div class="topbar">
   <div style="display:flex;align-items:center;gap:10px">
-    <div class="ttitle"><div class="ldot"></div>GhostGaurd — Live Detection Monitor</div>
+    <div class="ttitle"><div class="ldot"></div>PassiveShield — Live Detection Monitor</div>
     <span class="badge bg-blue">CROSS-WINDOW</span>
   </div>
   <div style="display:flex;align-items:center;gap:10px">
@@ -152,7 +155,7 @@
     <div class="sc"><div class="sv" id="st-ms">0</div><div class="sl">Mouse pts</div></div>
     <div class="sc"><div class="sv" id="st-ks">0</div><div class="sl">Keystrokes</div></div>
     <div class="sc"><div class="sv" id="st-sc">0</div><div class="sl">Scroll pts</div></div>
-    <div class="sc"><div class="sv" id="st-hz">—</div><div class="sl">Updates/s</div></div>
+    <div class="sc"><div class="sv" id="st-rx" style="color:var(--green)">0</div><div class="sl">Signals recv</div></div>
   </div>
 
   <div class="grid2">
@@ -179,6 +182,123 @@
               <div class="pv" id="bpct" style="color:var(--text3)">—</div>
               <div class="pt"><div class="pf" id="bbar" style="width:0%"></div></div>
             </div>
+          </div>
+          <div id="scoreBreakdown" style="margin-top:10px;font-family:var(--mono);font-size:10px;color:var(--text3)">Waiting for data…</div>
+        </div>
+      </div>
+
+      <!-- LOCATION + TIME CONTEXT (full width row) -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+
+        <!-- LOCATION CARD -->
+        <div class="card a3">
+          <div class="ch">
+            <span class="ct">
+              <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="opacity:.6"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              Location Context
+            </span>
+            <span id="locRiskBadge" style="font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:10px;background:var(--bg3);color:var(--text3)">—</span>
+          </div>
+          <div class="cb" style="padding:12px 14px">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+              <div id="flagEmoji" style="font-size:28px;line-height:1">🌐</div>
+              <div>
+                <div style="font-size:16px;font-weight:600" id="locCity">Detecting…</div>
+                <div style="font-size:12px;color:var(--text2)" id="locCountry">—</div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+              <div style="background:var(--bg3);border-radius:6px;padding:7px 10px">
+                <div style="font-size:9px;color:var(--text3);margin-bottom:2px;text-transform:uppercase;letter-spacing:.05em">IP Address</div>
+                <div style="font-family:var(--mono);font-size:12px;font-weight:500" id="locIP">—</div>
+              </div>
+              <div style="background:var(--bg3);border-radius:6px;padding:7px 10px">
+                <div style="font-size:9px;color:var(--text3);margin-bottom:2px;text-transform:uppercase;letter-spacing:.05em">Timezone</div>
+                <div style="font-family:var(--mono);font-size:12px;font-weight:500" id="locTZ">—</div>
+              </div>
+              <div style="background:var(--bg3);border-radius:6px;padding:7px 10px;grid-column:1/-1">
+                <div style="font-size:9px;color:var(--text3);margin-bottom:2px;text-transform:uppercase;letter-spacing:.05em">ISP / Org</div>
+                <div style="font-family:var(--mono);font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="locISP">—</div>
+              </div>
+            </div>
+            <div style="margin-top:8px;padding:6px 8px;background:var(--bg3);border-radius:6px;font-size:10px;color:var(--text2);font-family:var(--mono)" id="locNote">
+              Awaiting location data…
+            </div>
+          </div>
+        </div>
+
+        <!-- TIME OF DAY CARD -->
+        <div class="card a3">
+          <div class="ch">
+            <span class="ct">
+              <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="opacity:.6"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Time-of-Day Context
+            </span>
+            <span id="timeRiskBadge" style="font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:10px;background:var(--bg3);color:var(--text3)">—</span>
+          </div>
+          <div class="cb" style="padding:12px 14px">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+              <div id="timeIcon" style="font-size:30px;line-height:1">🕐</div>
+              <div>
+                <div style="font-size:20px;font-weight:700;font-family:var(--mono)" id="timeDisplay">—</div>
+                <div style="font-size:12px;color:var(--text2)" id="timeSlot">—</div>
+              </div>
+            </div>
+            <!-- Time-of-day risk bar -->
+            <div style="margin-bottom:8px">
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:4px">
+                <span>Login risk by hour</span><span id="timeRiskLabel">—</span>
+              </div>
+              <div style="height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">
+                <div id="timeRiskBar" style="height:100%;border-radius:3px;transition:width .5s,background .4s;width:0%"></div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+              <div style="background:var(--bg3);border-radius:6px;padding:7px 10px">
+                <div style="font-size:9px;color:var(--text3);margin-bottom:2px;text-transform:uppercase;letter-spacing:.05em">Day</div>
+                <div style="font-family:var(--mono);font-size:12px;font-weight:500" id="timeDayName">—</div>
+              </div>
+              <div style="background:var(--bg3);border-radius:6px;padding:7px 10px">
+                <div style="font-size:9px;color:var(--text3);margin-bottom:2px;text-transform:uppercase;letter-spacing:.05em">UTC Offset</div>
+                <div style="font-family:var(--mono);font-size:12px;font-weight:500" id="timeUTCOffset">—</div>
+              </div>
+            </div>
+            <div style="margin-top:8px;padding:6px 8px;background:var(--bg3);border-radius:6px;font-size:10px;color:var(--text2);font-family:var(--mono)" id="timeNote">
+              Awaiting time context…
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /context row -->
+
+      <!-- DEVICE + BROWSER FINGERPRINT -->
+      <div class="card a3">
+        <div class="ch">
+          <span class="ct">
+            <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="opacity:.6"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+            Device &amp; Browser Fingerprint
+          </span>
+        </div>
+        <div style="padding:10px 14px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px" id="deviceGrid">
+          <div style="background:var(--bg3);border-radius:6px;padding:7px 10px;text-align:center">
+            <div style="font-size:9px;color:var(--text3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">Screen</div>
+            <div style="font-family:var(--mono);font-size:11px;font-weight:600" id="dv-screen">—</div>
+          </div>
+          <div style="background:var(--bg3);border-radius:6px;padding:7px 10px;text-align:center">
+            <div style="font-size:9px;color:var(--text3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">DPR</div>
+            <div style="font-family:var(--mono);font-size:11px;font-weight:600" id="dv-dpr">—</div>
+          </div>
+          <div style="background:var(--bg3);border-radius:6px;padding:7px 10px;text-align:center">
+            <div style="font-size:9px;color:var(--text3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">Touch</div>
+            <div style="font-family:var(--mono);font-size:11px;font-weight:600" id="dv-touch">—</div>
+          </div>
+          <div style="background:var(--bg3);border-radius:6px;padding:7px 10px;text-align:center">
+            <div style="font-size:9px;color:var(--text3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">Language</div>
+            <div style="font-family:var(--mono);font-size:11px;font-weight:600" id="dv-lang">—</div>
+          </div>
+          <div style="background:var(--bg3);border-radius:6px;padding:7px 10px;text-align:center;grid-column:1/-1">
+            <div style="font-size:9px;color:var(--text3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">User Agent</div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="dv-ua">—</div>
           </div>
         </div>
       </div>
@@ -218,6 +338,7 @@
             <tr><td>Accel variance</td> <td class="val vc" id="tv-acc">—</td>  <td>σ</td>     <td id="ti-acc" style="font-size:11px;color:var(--text2)">—</td><td id="tg-acc">—</td></tr>
             <tr><td>Typing latency</td> <td class="val vg" id="tv-tlat">—</td> <td>ms avg</td><td id="ti-tlat" style="font-size:11px;color:var(--text2)">—</td><td id="tg-tlat">—</td></tr>
             <tr><td>Typing σ</td>       <td class="val vg" id="tv-tstd">—</td> <td>ms</td>    <td id="ti-tstd" style="font-size:11px;color:var(--text2)">—</td><td id="tg-tstd">—</td></tr>
+            <tr><td style="font-weight:600;color:var(--cyan)">Typing CoV (σ/mean)</td> <td class="val vc" id="tv-tcov">—</td> <td>ratio</td><td id="ti-tcov" style="font-size:11px;color:var(--text2)">—</td><td id="tg-tcov">—</td></tr>
             <tr><td>Click σ</td>        <td class="val va" id="tv-cis">—</td>  <td>ms</td>    <td id="ti-cis" style="font-size:11px;color:var(--text2)">—</td><td id="tg-cis">—</td></tr>
             <tr><td>Scroll variance</td><td class="val vp" id="tv-scv">—</td>  <td>σ</td>     <td id="ti-scv" style="font-size:11px;color:var(--text2)">—</td><td id="tg-scv">—</td></tr>
             <tr><td>Path linearity</td> <td class="val vb" id="tv-lin">—</td>  <td>0–1</td>   <td id="ti-lin" style="font-size:11px;color:var(--text2)">—</td><td id="tg-lin">—</td></tr>
@@ -264,6 +385,11 @@
             <div class="fr"><div class="ft"><span class="fn">Accel jitter</span><span class="fv" id="fw-ac">—</span></div><div class="ftk"><div class="ff" id="ff-ac" style="width:0%;background:var(--cyan)"></div></div></div>
             <div class="fr"><div class="ft"><span class="fn">Typing mean</span><span class="fv" id="fw-tm">—</span></div><div class="ftk"><div class="ff" id="ff-tm" style="width:0%;background:var(--green)"></div></div></div>
             <div class="fr"><div class="ft"><span class="fn">Typing σ</span><span class="fv" id="fw-tv">—</span></div><div class="ftk"><div class="ff" id="ff-tv" style="width:0%;background:var(--green)"></div></div></div>
+            <div class="fr" style="background:rgba(57,208,216,.05);border:1px solid rgba(57,208,216,.15);border-radius:5px;padding:5px 6px;">
+              <div class="ft"><span class="fn" style="color:var(--cyan);font-weight:600">⭐ Typing CoV (σ/mean)</span><span class="fv" id="fw-tcov">—</span></div>
+              <div class="ftk"><div class="ff" id="ff-tcov" style="width:0%;background:var(--cyan)"></div></div>
+              <div style="font-size:10px;color:var(--text3);margin-top:3px">Key bot discriminator: &gt;0.40=human · &lt;0.08=bot</div>
+            </div>
             <div class="fr"><div class="ft"><span class="fn">Click σ</span><span class="fv" id="fw-ci">—</span></div><div class="ftk"><div class="ff" id="ff-ci" style="width:0%;background:var(--amber)"></div></div></div>
             <div class="fr"><div class="ft"><span class="fn">Scroll var</span><span class="fv" id="fw-sc">—</span></div><div class="ftk"><div class="ff" id="ff-sc" style="width:0%;background:var(--purple)"></div></div></div>
             <div class="fr"><div class="ft"><span class="fn">Linearity inv</span><span class="fv" id="fw-li">—</span></div><div class="ftk"><div class="ff" id="ff-li" style="width:0%;background:var(--red)"></div></div></div>
@@ -312,6 +438,8 @@ const CHANNEL = 'ps_signal';
 const t0 = performance.now();
 let firstData = false, lastPositions = [], lastIntervals = [];
 let updateTimes = [], logCount = 0;
+let lastProcessedTs = 0;   // BUG FIX 1: track last processed timestamp to deduplicate
+let receiveCount = 0;      // heartbeat counter — always increments on every real update
 
 const mean = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : 0;
 const std  = a => { if(a.length<2) return 0; const m=mean(a); return Math.sqrt(a.reduce((x,y)=>x+(y-m)**2,0)/a.length); };
@@ -319,21 +447,36 @@ const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
 const fmt = (v,d=1) => (isFinite(v)&&!isNaN(v)&&v>0) ? v.toFixed(d) : '—';
 
 // ── CROSS-WINDOW: storage event fires when PAGE 1 writes localStorage ──
+// NOTE: Chrome does NOT fire storage events for file:// URLs cross-window.
+// The setInterval polling below is the PRIMARY mechanism for file:// demos.
 window.addEventListener('storage', e => {
   if (e.key === CHANNEL && e.newValue) {
-    try { process(JSON.parse(e.newValue)); } catch(err) {}
+    try {
+      const p = JSON.parse(e.newValue);
+      lastProcessedTs = p.ts;
+      process(p);
+    } catch(err) {}
   }
 });
 
-// ── FALLBACK POLL: also poll every 120ms (handles same-tab / file:// quirks)
+// ── PRIMARY POLL: every 50ms — this is what actually works for file:// URLs ──
+// Chrome blocks cross-window storage events on file://, so we poll directly.
+// Uses a SEPARATE timestamp tracker (_lastPolledTs) independent of storage event
+// to avoid the two channels interfering with each other.
+let _lastPolledTs = 0;
 setInterval(() => {
   try {
     const raw = localStorage.getItem(CHANNEL);
     if (!raw) return;
     const p = JSON.parse(raw);
-    if (Date.now() - p.ts < 600) process(p);
+    // Process if timestamp is new AND data is fresh (within 10 seconds)
+    if (p.ts !== _lastPolledTs && Date.now() - p.ts < 10000) {
+      _lastPolledTs = p.ts;
+      lastProcessedTs = p.ts;
+      process(p);
+    }
   } catch(e) {}
-}, 120);
+}, 50);
 
 function process(payload) {
   if (!firstData) {
@@ -341,28 +484,50 @@ function process(payload) {
     document.getElementById('wait').classList.add('gone');
     document.getElementById('mainPage').style.display = '';
   }
+  receiveCount++;
   updateTimes.push(performance.now());
   if (updateTimes.length > 20) updateTimes.shift();
 
-  const { features: f, prob, raw, meta } = payload;
+  const { features: f, featuresRecent: fR, prob, probHist, probRecent, raw, meta } = payload;
+
+  // featuresRecent may be absent in older payloads — fall back gracefully
+  const fRecent = fR || f;
+  const pRecent = (probRecent !== undefined) ? probRecent : prob;
+  const pHist   = (probHist   !== undefined) ? probHist   : prob;
+
   lastPositions = raw.mousePositions || [];
   const ti = [];
   for (let i=1; i<(raw.keyTimes||[]).length; i++) ti.push(raw.keyTimes[i]-raw.keyTimes[i-1]);
   lastIntervals = ti;
 
-  renderVerdict(prob);
-  renderFeatures(f, ti);
-  renderDecisions(f);
+  // Use blended final prob for main verdict, but show breakdown
+  renderVerdict(prob, pRecent, pHist);
+  renderFeatures(fRecent, ti);
+  renderDecisions(fRecent);
   drawGauge(prob);
   drawPath(raw.mousePositions||[]);
   drawKs(ti);
   renderStats(raw, meta);
-  appendLog(f, prob);
-  document.getElementById('lastUpdate').textContent = 'Last: '+new Date().toLocaleTimeString();
+  if (payload.context) renderContext(payload.context);
+  appendLog(fRecent, prob, pRecent);
+  document.getElementById('lastUpdate').textContent =
+    new Date().toLocaleTimeString() + ' · #' + receiveCount;
+  pulseReceive(prob);
 }
 
-// ── VERDICT ───────────────────────────────────────────────────────────
-function renderVerdict(prob) {
+
+
+// ── VERDICT + PULSE ──────────────────────────────────────────────────
+function pulseReceive(prob) {
+  const vc = document.getElementById('vcard');
+  const clr = (!prob||prob>0.75) ? 'rgba(63,185,80,0.5)' :
+               prob>0.4 ? 'rgba(227,179,65,0.5)' : 'rgba(248,81,73,0.5)';
+  vc.style.transition = 'box-shadow 0.1s';
+  vc.style.boxShadow = `0 0 0 2px ${clr}`;
+  setTimeout(() => { vc.style.boxShadow = 'none'; }, 200);
+}
+
+function renderVerdict(prob, pRecent, pHist) {
   const h=Math.round(prob*100), b=100-h;
   const vc=document.getElementById('vcard');
   const vi=document.getElementById('vicon'), vl=document.getElementById('vlabel'), vs=document.getElementById('vsub');
@@ -370,6 +535,25 @@ function renderVerdict(prob) {
   const hb=document.getElementById('hbar'), bb=document.getElementById('bbar');
   hp.textContent=h+'%'; bp.textContent=b+'%';
   hb.style.width=h+'%'; bb.style.width=b+'%';
+
+  // Show recent vs history breakdown
+  const bd = document.getElementById('scoreBreakdown');
+  if (bd && pRecent !== undefined) {
+    bd.innerHTML =
+      `<span style="color:var(--cyan)">recent(12): ${Math.round(pRecent*100)}%</span>` +
+      `<span style="color:var(--text3);margin:0 5px">·</span>` +
+      `<span style="color:var(--text2)">history(50): ${Math.round(pHist*100)}%</span>` +
+      `<span style="color:var(--text3);margin:0 5px">·</span>` +
+      `<span style="color:var(--text3)">blend 70/30</span>`;
+  }
+
+  // Flash numbers on every update — proves stream is live even at stable 98%
+  [hp, bp].forEach(el => {
+    el.style.animation = 'none';
+    void el.offsetWidth;
+    el.style.animation = 'numFlash 0.25s ease';
+  });
+
   const badge=document.getElementById('connBadge');
   if(prob>0.75){
     vc.className='vcard v-h'; vi.textContent='✓'; vl.textContent='Human Verified'; vl.style.color='var(--green)';
@@ -410,8 +594,26 @@ function renderFeatures(f,ti){
   const ht=ti.length>1;
   setRow('spd',  f.speedMean,  f.speedMean>200&&f.speedMean<2000?'Organic range':'Constant/extreme', f.speedMean>200&&f.speedMean<2000);
   setRow('acc',  f.accelVar,   f.accelVar>30?'Natural jitter':'Robotic constancy', f.accelVar>30);
-  setRow('tlat', f.typingMean, ht?(f.typingMean>80?'Natural hesitation':'Suspiciously fast'):'Type in login fields', f.typingMean>80, !ht);
-  setRow('tstd', f.typingStd,  ht?(f.typingStd>40?'Variable rhythm':'Uniform — mechanical'):'Need more keys', f.typingStd>40, !ht);
+  setRow('tlat', f.typingMean, ht?(f.typingMean>60?'Natural hesitation':'Very fast — check CoV'):'Type in login fields', f.typingMean>120, !ht);
+  setRow('tstd', f.typingStd,  ht?(f.typingStd>25?'Variable rhythm':'Suspiciously uniform'):'Need more keys', f.typingStd>25, !ht);
+
+  // typingCoV — the most important typing feature
+  const cov = f.typingCoV || 0;
+  const covHasData = ht && cov > 0;
+  let covInterp, covOk;
+  if (!covHasData) { covInterp = 'Type 3+ characters to measure'; covOk = false; }
+  else if (cov > 0.40) { covInterp = 'High relative variance → natural human rhythm'; covOk = true; }
+  else if (cov > 0.20) { covInterp = 'Moderate variance → likely human'; covOk = true; }
+  else if (cov > 0.08) { covInterp = 'Low variance → suspicious, could be bot'; covOk = false; }
+  else { covInterp = 'Near-zero variance → very likely automation'; covOk = false; }
+  setRow('tcov', cov, covInterp, covOk, !covHasData);
+  // Color the CoV value for maximum visibility
+  const covEl = document.getElementById('tv-tcov');
+  if (covEl) {
+    covEl.textContent = covHasData ? cov.toFixed(3) : '—';
+    covEl.style.color = !covHasData ? 'var(--text3)' : cov > 0.40 ? 'var(--green)' : cov > 0.20 ? 'var(--amber)' : 'var(--red)';
+  }
+
   setRow('cis',  f.clickStd,   f.clickStd>60?'Irregular = human':'Precise = bot', f.clickStd>60, f.clickStd===0);
   setRow('scv',  f.scrollVar,  f.scrollVar>20?'Variable = organic':'Fixed delta = bot', f.scrollVar>20);
   setRow('lin',  f.linearity,  f.linearity<0.75?'Curved = natural':'Straight = bot', f.linearity<0.75);
@@ -419,18 +621,31 @@ function renderFeatures(f,ti){
   setRow('cov',  f.cv,         f.cv>0.2?'Variable speed = organic':'Constant = automated', f.cv>0.2);
   document.getElementById('tv-cov').textContent = f.cv.toFixed(3);
 
-  setFW('cv',f.cv*100,100); setFW('ac',f.accelVar,400); setFW('tm',f.typingMean,400); setFW('tv',f.typingStd,200);
+  // Feature bars — typingCoV gets its own prominent bar
+  const c=(v,max) => Math.min(100, v/max*100).toFixed(1)+'%';
+  const setFW=(id,val,max)=>{ const e=document.getElementById('fw-'+id), b=document.getElementById('ff-'+id); if(e) e.textContent=fmt(val); if(b) b.style.width=c(val,max); };
+  setFW('cv',f.cv*100,100); setFW('ac',f.accelVar,400);
+  setFW('tm',f.typingMean,400); setFW('tv',f.typingStd,200);
+  // typingCoV bar: 0–1 scale, color indicates quality
+  const tcBar = document.getElementById('ff-tcov');
+  const tcVal = document.getElementById('fw-tcov');
+  if (tcBar && tcVal) {
+    tcVal.textContent = covHasData ? cov.toFixed(3) : '—';
+    tcBar.style.width = c(cov, 1);
+    tcBar.style.background = cov > 0.40 ? 'var(--green)' : cov > 0.20 ? 'var(--amber)' : cov > 0 ? 'var(--red)' : 'var(--text3)';
+  }
   setFW('ci',f.clickStd,300); setFW('sc',f.scrollVar,200); setFW('li',(1-f.linearity)*100,100); setFW('en',f.entropy*100,100);
 }
 
 function renderDecisions(f){
+  const cov = f.typingCoV || 0;
   const items=[
-    {l:'Speed CoV',     v:(f.cv*100).toFixed(0)+'%', p:f.cv>0.2,         w:f.cv>0.2?'Natural variation':'Constant speed'},
-    {l:'Accel jitter',  v:fmt(f.accelVar),            p:f.accelVar>50,    w:f.accelVar>50?'Human-like tremor':'Zero jitter — bot'},
-    {l:'Typing latency',v:f.typingMean>0?fmt(f.typingMean)+'ms':'n/a',   p:f.typingMean>80||!f.typingMean, w:f.typingMean>0?(f.typingMean>80?'Natural hesitation':'Fast/uniform'):'Type in login page'},
-    {l:'Typing σ',      v:f.typingStd>0?fmt(f.typingStd)+'ms':'n/a',     p:f.typingStd>40||!f.typingStd,  w:f.typingStd>0?(f.typingStd>40?'Variable rhythm':'Uniform — bot'):'Need more keystrokes'},
-    {l:'Path linearity',v:f.linearity.toFixed(3),     p:f.linearity<0.75, w:f.linearity<0.75?'Curved — organic':'Straight — bot'},
-    {l:'Entropy',       v:(f.entropy*3).toFixed(2),   p:f.entropy>0.4,    w:f.entropy>0.4?'Rich entropy':'Predictable pattern'},
+    {l:'Mouse speed CoV',   v:(f.cv*100).toFixed(0)+'%',  p:f.cv>0.2,         w:f.cv>0.2?'Natural speed variation':'Constant speed'},
+    {l:'Accel jitter',      v:fmt(f.accelVar),             p:f.accelVar>50,    w:f.accelVar>50?'Human-like tremor':'Zero jitter — bot'},
+    {l:'Typing CoV ★',      v:cov.toFixed(3),              p:cov>0.20,         w:cov>0.40?'Strong human rhythm variance':cov>0.20?'Some variance — likely human':cov>0?'Near-uniform — bot-like':'Type in fields to measure'},
+    {l:'Typing latency',    v:f.typingMean>0?fmt(f.typingMean)+'ms':'n/a',    p:f.typingMean>60||!f.typingMean, w:f.typingMean>0?(f.typingMean>60?'Natural pace':'Fast — check CoV'):'Type in login page'},
+    {l:'Path linearity',    v:f.linearity.toFixed(3),      p:f.linearity<0.75, w:f.linearity<0.75?'Curved — organic':'Straight — bot'},
+    {l:'Entropy',           v:(f.entropy*3).toFixed(2),    p:f.entropy>0.4,    w:f.entropy>0.4?'Rich entropy':'Predictable pattern'},
   ];
   document.getElementById('decisions').innerHTML=items.map(it=>`
     <div style="display:flex;align-items:flex-start;gap:8px">
@@ -522,15 +737,79 @@ function renderStats(raw,meta){
   document.getElementById('st-ms').textContent=(raw.mousePositions||[]).length;
   document.getElementById('st-ks').textContent=(raw.keyTimes||[]).length;
   document.getElementById('st-sc').textContent=(raw.scrollDeltas||[]).length;
-  if(updateTimes.length>2){
-    const span=updateTimes[updateTimes.length-1]-updateTimes[0];
-    document.getElementById('st-hz').textContent=((updateTimes.length-1)/(span/1000)).toFixed(1);
+  // receiveCount always increments on every new payload — proves stream is live
+  document.getElementById('st-rx').textContent=receiveCount;
+}
+
+// ── CONTEXT: location + time of day + device ─────────────────
+function renderContext(ctx) {
+  const t = ctx.time || {};
+  const g = id => document.getElementById(id);
+
+  // Location panel
+  const city = ctx.city||'—', country = ctx.country||'—', cc = ctx.countryCode||'';
+  const flag = cc.length===2
+    ? String.fromCodePoint(0x1F1E6+cc.charCodeAt(0)-65)+String.fromCodePoint(0x1F1E6+cc.charCodeAt(1)-65)
+    : '🌐';
+  if(g('flagEmoji'))  g('flagEmoji').textContent  = flag;
+  if(g('locCity'))    g('locCity').textContent    = city!=='—' ? city : 'City unknown';
+  if(g('locCountry')) g('locCountry').textContent = country+(cc?` (${cc})`:'');
+  if(g('locIP'))      g('locIP').textContent      = ctx.ip||'—';
+  if(g('locTZ'))      g('locTZ').textContent      = ctx.timezone ? (ctx.timezone.split('/')[1]||ctx.timezone) : '—';
+  if(g('locISP'))     g('locISP').textContent     = ctx.isp||'—';
+  const isVPN = ctx.isp && /vpn|proxy|hosting|cloud|digitalocean|linode|vultr|ovh|amazon|google|microsoft|hetzner|aws|azure/i.test(ctx.isp);
+  const locRisk = isVPN ? 'high' : city==='—' ? 'medium' : 'low';
+  if(g('locNote')) g('locNote').textContent = isVPN
+    ? `⚠ ISP matches datacenter/VPN pattern — bots often use cloud IPs`
+    : city==='—' ? `Location unresolved — geo lookup failed or blocked`
+    : `✓ Login from ${city}, ${country} — location resolved`;
+  if(g('locRiskBadge')){
+    const s={high:'background:var(--rbg);color:var(--red)',medium:'background:var(--abg);color:var(--amber)',low:'background:var(--gbg);color:var(--green)'};
+    g('locRiskBadge').style.cssText=`font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:10px;${s[locRisk]}`;
+    g('locRiskBadge').textContent=locRisk.toUpperCase()+' RISK';
   }
+
+  // Time of day panel
+  const hour   = t.hour ?? new Date().getHours();
+  const slot   = t.slot || 'unknown';
+  const dayName = t.dayName || ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date().getDay()];
+  const isWknd  = t.isWeekend ?? (new Date().getDay()===0||new Date().getDay()===6);
+  const localTime = t.localTime || new Date().toLocaleTimeString();
+  const utcOff = t.utcOffset!==undefined ? (t.utcOffset>=0?'+':'')+t.utcOffset+'h' : '—';
+  const icons={early_morning:'🌅',morning:'☀',midday:'🌞',afternoon:'🌤',evening:'🌆',night:'🌙'};
+  const slotLabels={early_morning:'Early morning',morning:'Morning',midday:'Midday',afternoon:'Afternoon',evening:'Evening',night:'Night'};
+  if(g('timeIcon'))     g('timeIcon').textContent     = icons[slot]||'🕐';
+  if(g('timeDisplay'))  g('timeDisplay').textContent  = localTime;
+  if(g('timeDayName'))  g('timeDayName').textContent  = dayName+(isWknd?' 🏖':'');
+  if(g('timeUTCOffset'))g('timeUTCOffset').textContent= utcOff;
+  if(g('timeSlot'))     g('timeSlot').textContent     = (slotLabels[slot]||slot)+(isWknd?' · Weekend':' · Weekday');
+  const timeRisk = t.riskSignal||(hour<5||hour>=23?'high':hour<8||hour>=20?'medium':'low');
+  const riskPct={high:85,medium:50,low:20}[timeRisk];
+  const riskClr={high:'var(--red)',medium:'var(--amber)',low:'var(--green)'}[timeRisk];
+  if(g('timeRiskBar'))  { g('timeRiskBar').style.width=riskPct+'%'; g('timeRiskBar').style.background=riskClr; }
+  if(g('timeRiskLabel')){ g('timeRiskLabel').textContent=timeRisk.toUpperCase(); g('timeRiskLabel').style.color=riskClr; }
+  if(g('timeRiskBadge')){
+    const s={high:'background:var(--rbg);color:var(--red)',medium:'background:var(--abg);color:var(--amber)',low:'background:var(--gbg);color:var(--green)'};
+    g('timeRiskBadge').style.cssText=`font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:10px;${s[timeRisk]}`;
+    g('timeRiskBadge').textContent=timeRisk.toUpperCase()+' RISK';
+  }
+  if(g('timeNote')) g('timeNote').textContent={
+    high:`⚠ Login at ${hour}:00 — off-hours activity, elevated bot risk`,
+    medium:`⚡ Login at ${hour}:00 — outside peak hours, moderate risk`,
+    low:`✓ Login at ${hour}:00 — normal business hours, low risk`,
+  }[timeRisk];
+
+  // Device fingerprint
+  if(g('dv-screen')) g('dv-screen').textContent = ctx.screenW&&ctx.screenH ? `${ctx.screenW}×${ctx.screenH}` : '—';
+  if(g('dv-dpr'))    g('dv-dpr').textContent    = ctx.devicePixelRatio||'—';
+  if(g('dv-touch'))  g('dv-touch').textContent  = ctx.touchPoints>0 ? `${ctx.touchPoints} pts` : 'None';
+  if(g('dv-lang'))   g('dv-lang').textContent   = ctx.language||'—';
+  if(g('dv-ua'))     g('dv-ua').textContent     = ctx.userAgent||'—';
 }
 
 let logCount2=0;
 const logBox=document.getElementById('logbox');
-function appendLog(f,prob){
+function appendLog(f, prob, pRecent){
   logCount2++;
   if(logCount2%2!==0) return;
   const el=(performance.now()-t0)/1000;
@@ -539,8 +818,9 @@ function appendLog(f,prob){
   const ms=String(Math.floor((el%1)*1000)).padStart(3,'0');
   const verdict=prob>0.75?'HUMAN':prob>0.4?'SUS':'BOT';
   const cls=prob>0.75?'lm':prob>0.4?'lk':'ls';
+  const rStr = pRecent!==undefined ? ` recent=${Math.round(pRecent*100)}%` : '';
   const div=document.createElement('div');div.className='le';
-  div.innerHTML=`<span class="lt">${m}:${s}:${ms}</span><span class="lty ${cls}">MODEL </span><span class="ld">score=${Math.round(prob*100)}% [${verdict}] spd=${Math.round(f.speedMean)} tlat=${f.typingMean>0?Math.round(f.typingMean)+'ms':'—'} lin=${f.linearity.toFixed(2)} ent=${(f.entropy*3).toFixed(2)}</span>`;
+  div.innerHTML=`<span class="lt">${m}:${s}:${ms}</span><span class="lty ${cls}">MODEL </span><span class="ld">blend=${Math.round(prob*100)}%${rStr} [${verdict}] spd=${Math.round(f.speedMean||0)} tlat=${f.typingMean>0?Math.round(f.typingMean)+'ms':'—'} lin=${(f.linearity||0).toFixed(2)}</span>`;
   logBox.appendChild(div);
   if(logBox.children.length>60) logBox.removeChild(logBox.children[0]);
   logBox.scrollTop=logBox.scrollHeight;
